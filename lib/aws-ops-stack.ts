@@ -1,4 +1,8 @@
-import { Stack, StackProps } from 'aws-cdk-lib';
+import {
+	Stack,
+	StackProps,
+	aws_elasticloadbalancingv2 as elbv2,
+} from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
@@ -115,5 +119,11 @@ export class AwsOpsStack extends Stack {
 				subnetId: subnetPrivate1c.ref,
 			}
 		);
+
+		// LoadBalancer
+		const elb = new elbv2.CfnLoadBalancer(this, 'elasticLoadBalancer', {
+			subnets: [subnetPublic1a.ref, subnetPublic1c.ref],
+			name: 'ELB',
+		});
 	}
 }
