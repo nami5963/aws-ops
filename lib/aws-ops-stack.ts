@@ -120,10 +120,48 @@ export class AwsOpsStack extends Stack {
 			}
 		);
 
-		// LoadBalancer
-		const elb = new elbv2.CfnLoadBalancer(this, 'elasticLoadBalancer', {
-			subnets: [subnetPublic1a.ref, subnetPublic1c.ref],
-			name: 'ELB',
+		const sgForELB = new ec2.CfnSecurityGroup(this, 'sgForELB', {
+			groupDescription: 'security group for ELB',
+			securityGroupIngress: [
+				{
+					ipProtocol: 'TCP',
+					cidrIp: '0.0.0.0/0',
+					fromPort: 80,
+					toPort: 80,
+				},
+			],
+			vpcId: vpc.ref,
 		});
+
+		// LoadBalancer
+		const elasticLoadBalancer = new elbv2.CfnLoadBalancer(
+			this,
+			'elasticLoadBalancer',
+			{
+				subnets: [subnetPublic1a.ref, subnetPublic1c.ref],
+				name: 'elasticLoadBalancer',
+				securityGroups: [sgForELB.ref],
+			}
+		);
+
+		const defaultListenerRule = new elbv2.CfnListener(
+			this,
+			'defaultListenerRule',
+			{
+				defaultActions: [
+					{
+						type: 'fixed-response',
+						fixedResponseConfig: {
+							statusCode: '500',
+							contentType: 'text/plain',
+							messageBody: 'default error response',
+						},
+					},
+				],
+				loadBalancerArn: elasticLoadBalancer.ref,
+				port: 80,
+				protocol: 'HTTP',
+			}
+		);
 	}
 }
