@@ -10,7 +10,9 @@ export class AwsOpsStack extends Stack {
 	constructor(scope: Construct, id: string, props?: StackProps) {
 		super(scope, id, props);
 
-		// vpc
+		/**
+		 * VPC
+		 */
 		const vpc = new ec2.CfnVPC(this, 'vpc', {
 			cidrBlock: '10.0.0.0/16',
 			tags: [
@@ -19,9 +21,9 @@ export class AwsOpsStack extends Stack {
 					value: 'vpc',
 				},
 			],
+			enableDnsHostnames: true,
+			enableDnsSupport: true,
 		});
-
-		// InternetGateway
 		const igw = new ec2.CfnInternetGateway(this, 'igw', {
 			tags: [
 				{
@@ -35,7 +37,9 @@ export class AwsOpsStack extends Stack {
 			vpcId: vpc.ref,
 		});
 
-		// PublicSubnet
+		/**
+		 * subnets
+		 */
 		const subnetPublic1a = new ec2.CfnSubnet(this, 'subnetPublic1a', {
 			cidrBlock: '10.0.0.0/24',
 			vpcId: vpc.ref,
@@ -48,8 +52,6 @@ export class AwsOpsStack extends Stack {
 			availabilityZone: 'ap-northeast-1c',
 			tags: [{ key: 'Name', value: 'public-subnet-1c' }],
 		});
-
-		// PrivateSubnet
 		const subnetPrivate1a = new ec2.CfnSubnet(this, 'subnetPrivate1a', {
 			cidrBlock: '10.0.8.0/24',
 			vpcId: vpc.ref,
@@ -63,7 +65,9 @@ export class AwsOpsStack extends Stack {
 			tags: [{ key: 'Name', value: 'private-subnet-1c' }],
 		});
 
-		// RouteTable
+		/**
+		 * RouteTables
+		 */
 		const publicRouteTable = new ec2.CfnRouteTable(this, 'publicRouteTable', {
 			vpcId: vpc.ref,
 			tags: [
@@ -120,6 +124,9 @@ export class AwsOpsStack extends Stack {
 			}
 		);
 
+		/**
+		 * LoadBalancer
+		 */
 		const sgForELB = new ec2.CfnSecurityGroup(this, 'sgForELB', {
 			groupDescription: 'security group for ELB',
 			securityGroupIngress: [
@@ -132,8 +139,6 @@ export class AwsOpsStack extends Stack {
 			],
 			vpcId: vpc.ref,
 		});
-
-		// LoadBalancer
 		const elasticLoadBalancer = new elbv2.CfnLoadBalancer(
 			this,
 			'elasticLoadBalancer',
@@ -143,7 +148,6 @@ export class AwsOpsStack extends Stack {
 				securityGroups: [sgForELB.ref],
 			}
 		);
-
 		const defaultListenerRule = new elbv2.CfnListener(
 			this,
 			'defaultListenerRule',
@@ -152,9 +156,9 @@ export class AwsOpsStack extends Stack {
 					{
 						type: 'fixed-response',
 						fixedResponseConfig: {
-							statusCode: '500',
+							statusCode: '200',
 							contentType: 'text/plain',
-							messageBody: 'default error response',
+							messageBody: 'default response',
 						},
 					},
 				],
@@ -163,5 +167,49 @@ export class AwsOpsStack extends Stack {
 				protocol: 'HTTP',
 			}
 		);
+
+		/**
+		 * VPCEndpoints
+		 */
+		const sgForVPCE = new ec2.CfnSecurityGroup(this, 'sgForVPCE', {
+			groupDescription: 'security group for VPCE',
+			securityGroupIngress: [
+				{
+					ipProtocol: '-1',
+					cidrIp: '0.0.0.0/0',
+				},
+			],
+			vpcId: vpc.ref,
+		});
+		const s3VPCE = new ec2.CfnVPCEndpoint(this, 's3VPCE', {
+			serviceName: 'com.amazonaws.ap-northeast-1.s3',
+			vpcEndpointType: 'Gateway',
+			vpcId: vpc.ref,
+			routeTableIds: [publicRouteTable.ref, privateRouteTable.ref],
+		});
+		const ecrDkrVPCE = new ec2.CfnVPCEndpoint(this, 'ecrDkrVPCE', {
+			serviceName: 'com.amazonaws.ap-northeast-1.ecr.dkr',
+			vpcEndpointType: 'Interface',
+			subnetIds: [subnetPrivate1a.ref, subnetPrivate1c.ref],
+			securityGroupIds: [sgForVPCE.ref],
+			vpcId: vpc.ref,
+			privateDnsEnabled: true,
+		});
+		const ecrApiVPCE = new ec2.CfnVPCEndpoint(this, 'ecrApiVPCE', {
+			serviceName: 'com.amazonaws.ap-northeast-1.ecr.api',
+			vpcEndpointType: 'Interface',
+			subnetIds: [subnetPrivate1a.ref, subnetPrivate1c.ref],
+			securityGroupIds: [sgForVPCE.ref],
+			vpcId: vpc.ref,
+			privateDnsEnabled: true,
+		});
+		const logVPCE = new ec2.CfnVPCEndpoint(this, 'logVPCE', {
+			serviceName: 'com.amazonaws.ap-northeast-1.logs',
+			vpcEndpointType: 'Interface',
+			subnetIds: [subnetPrivate1a.ref, subnetPrivate1c.ref],
+			securityGroupIds: [sgForVPCE.ref],
+			vpcId: vpc.ref,
+			privateDnsEnabled: true,
+		});
 	}
 }
